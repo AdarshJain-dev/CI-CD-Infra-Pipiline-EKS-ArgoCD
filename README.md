@@ -1,50 +1,74 @@
-# Configure aws cli in your system
-aws congigure 
-
-# Terraform Execution to create 
-- Create a VPC (optional: use EKS module with VPC support)
-- Deploy an EKS Cluster
-- Create IAM roles and node groups
-- Output kubeconfig credentials to access the cluster.
-
-# Terraform Dirctory
+# 1️⃣ Terraform – Provision AWS EKS Cluster
+Step 1: Initialize Terraform
 cd terraform
-
-# 1. Initialize
 terraform init
 
-# 2. Check plan
-terraform plan
+Step 2: Validate Terraform
+terraform validate
 
-# 3. Apply
+Step 3: Apply Terraform
 terraform apply -auto-approve
 
-# configure kubeconfig
-aws eks --region ap-south-1 update-kubeconfig --name demo-eks-argocd-cluster
+Step 4: Update kubeconfig
+aws eks update-kubeconfig --region ap-south-1 --name demo-eks-argocd-cluster
 
-# Test (Wait a bit then try check)
-kubectl get nodes
+# 2️⃣ Deploy NGINX on Kubernetes
+Step 1: Apply Deployment
+kubectl apply -f manifests/deployment.yaml
+
+Step 2: Apply Service
+kubectl apply -f manifests/service.yaml
+
+Step 3: Verify Deployment
+kubectl get pods
+kubectl get svc nginx-service
+
+# 3️⃣ Install & Access ArgoCD
+Step 1: Create Namespace
+kubectl create namespace argocd
+
+Step 2: Install ArgoCD
+kubectl apply -n argocd \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+Step 3: Port-forward ArgoCD UI
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+
+Step 4: Retrieve Admin Password
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 --decode
+
+Step 5: Login
+
+Open browser and navigate to:
+
+https://localhost:8080
 
 
-# Install ArgoCD on EKS
+User: admin
+Password: (output from previous step)
 
-kubectl apply -f argocd/namespace.yaml
+# 4️⃣ Deploy Application Using ArgoCD (GitOps)
+Step 1: Apply ArgoCD Application Manifest
+kubectl apply -f argocd/application.yaml
 
-# Install ArgoCD (official install manifest)
-kubectl apply -n argocd \ -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+Step 2: Verify Application Sync
+kubectl get applications -n argocd
 
-# Validate
-kubectl get pods -n argocd
 
-# Expose ArgoCD server
-kubectl patch svc argocd-server -n argocd \ -p '{"spec": {"type": "LoadBalancer"}}'
+Open ArgoCD UI → Sync Application.
 
-# Get external IP / hostname:
-kubectl get svc argocd-server -n argocd
+# 5️⃣ Access NGINX Application
+Option A: Using LoadBalancer
+kubectl get svc nginx-service
 
-# Get ArgoCD admin password
-kubectl -n argocd get secret argocd-initial-admin-secret \ -o jsonpath="{.data.password}" | base64 --decode; echo
 
-Username: admin
+Copy EXTERNAL-IP → Open in browser.
 
-##
+Option B: Port-Forward
+kubectl port-forward deployment/nginx-app 8081:80
+
+
+Open:
+
+http://localhost:8081
